@@ -1,0 +1,141 @@
+diff -ruN linux-iwg15/arch/arm/boot/dts/imx6qdl_iwg15.dtsi linux-iwg15-M/arch/arm/boot/dts/imx6qdl_iwg15.dtsi
+--- linux-iwg15/arch/arm/boot/dts/imx6qdl_iwg15.dtsi	2020-11-13 18:16:39.000000000 +0530
++++ linux-iwg15-M/arch/arm/boot/dts/imx6qdl_iwg15.dtsi	2020-12-02 15:44:57.082157000 +0530
+@@ -1233,8 +1233,8 @@
+ 			fsl,pins = <
+ 				MX6QDL_PAD_EIM_D24__UART3_TX_DATA 0x1b0b1
+ 				MX6QDL_PAD_EIM_D25__UART3_RX_DATA 0x1b0b1
+-				MX6QDL_PAD_EIM_D30__UART3_CTS_B 0x1b0b1
+-				MX6QDL_PAD_SD3_RST__UART3_RTS_B 0x1b0b1
++				//MX6QDL_PAD_EIM_D30__UART3_CTS_B 0x1b0b1
++				//MX6QDL_PAD_SD3_RST__UART3_RTS_B 0x1b0b1
+ 			>;
+ 		};
+ 		
+@@ -2121,8 +2121,8 @@
+ 				MX6QDL_PAD_EIM_DA14__GPIO3_IO14      0x80000000
+ 				MX6QDL_PAD_EIM_DA15__GPIO3_IO15      0x80000000
+ 				MX6QDL_PAD_EIM_D23__GPIO3_IO23       0x80000000
+-				MX6QDL_PAD_EIM_D24__GPIO3_IO24       0x80000000
+-				MX6QDL_PAD_EIM_D25__GPIO3_IO25       0x80000000
++				//MX6QDL_PAD_EIM_D24__GPIO3_IO24       0x80000000
++				//MX6QDL_PAD_EIM_D25__GPIO3_IO25       0x80000000
+ 				MX6QDL_PAD_EIM_D30__GPIO3_IO30       0x80000000
+ 				MX6QDL_PAD_EIM_D31__GPIO3_IO31       0x80000000
+ 				MX6QDL_PAD_GPIO_19__GPIO4_IO05       0x80000000
+diff -ruN linux-iwg15/arch/arm/boot/dts/imx6qdl-iwg15s-pico.dtsi linux-iwg15-M/arch/arm/boot/dts/imx6qdl-iwg15s-pico.dtsi
+--- linux-iwg15/arch/arm/boot/dts/imx6qdl-iwg15s-pico.dtsi	2020-11-13 18:16:39.000000000 +0530
++++ linux-iwg15-M/arch/arm/boot/dts/imx6qdl-iwg15s-pico.dtsi	2020-12-02 13:23:03.408113000 +0530
+@@ -265,8 +265,8 @@
+ 
+ &uart3 {
+ 	pinctrl-names = "default";
+-	pinctrl-0 = <&pinctrl_uart3_2>;
+-	status = "disabled";
++	pinctrl-0 = <&pinctrl_uart3_1>;
++	status = "okay";
+ };
+ 
+ &uart4 {
+diff -ruN linux-iwg15/drivers/mxc/custom_driver/dip-sw.c linux-iwg15-M/drivers/mxc/custom_driver/dip-sw.c
+--- linux-iwg15/drivers/mxc/custom_driver/dip-sw.c	2020-11-13 18:16:39.000000000 +0530
++++ linux-iwg15-M/drivers/mxc/custom_driver/dip-sw.c	2020-11-28 14:23:41.382798000 +0530
+@@ -40,11 +40,25 @@
+ #include <linux/module.h>
+ #include <linux/io.h>
+ #include <asm/uaccess.h>
++#ifdef CONFIG_IWG15
++/*IWG15:SBC:Dipswitch:Added header file for polling function*/
++#include <linux/poll.h>
++#endif
+ #include "dip-sw.h"
+-
++#ifdef CONFIG_IWG15
++/*IWG15:SBC:Dipswitch:Added macros for dipswitch*/
++#define DS1 23
++#define DS2 24
++#define DS3 25
++#define DS4 26
++#endif
+ 
+ int num_ctrd;
+ unsigned  *ctrd;
++#ifdef CONFIG_IWG15
++/*IWG15:SBC:Dipswitch:Declared an array for dipswitch values*/
++static int dipstatus[4];
++#endif
+ 
+ static int dip_open(struct inode *inode, struct file *file)
+ {
+@@ -72,6 +86,26 @@
+ 			status = gpio_get_value(ctrd[arg]);
+ 			break;
+ 
++#ifdef CONFIG_IWG15
++/*IWG15:SBC:Dipswitch:Added ioctl calls to get the dipswitch status*/
++		case DS1:
++			status = gpio_get_value(ctrd[PIN1]);
++			dipstatus[0]=status;
++			break;
++		case DS2:
++                        status = gpio_get_value(ctrd[PIN2]);
++			dipstatus[1]=status;
++                        break;
++		case DS3:
++                        status = gpio_get_value(ctrd[PIN3]);
++			dipstatus[2]=status;
++                        break;
++		case DS4:
++                        status = gpio_get_value(ctrd[PIN4]);
++			dipstatus[3]=status;
++                        break;
++#endif
++
+ 		default:
+ 			printk("Unknown ioctl command %x\r\n", cmd);
+ 			return -EINVAL;   /* Invalid argument */
+@@ -80,6 +114,33 @@
+ 	return status;
+ }
+ 
++#ifdef CONFIG_IWG15
++/*IWG15:SBC:Dipswitch:Added poll function */
++unsigned int dip_poll(struct file * file, poll_table * pt) {
++	unsigned int mask = 0;
++	int temp;
++	int status_changed = 0;
++	
++	temp = gpio_get_value(ctrd[PIN1]);
++	if(temp != dipstatus[0])
++	status_changed =1;
++	temp = gpio_get_value(ctrd[PIN2]);
++	if(temp != dipstatus[1])
++	status_changed =1;
++	temp = gpio_get_value(ctrd[PIN3]);
++	if(temp != dipstatus[2])
++	status_changed =1;
++	temp = gpio_get_value(ctrd[PIN4]);
++	if(temp != dipstatus[3])
++	status_changed =1;
++
++	if (status_changed) 
++	mask |= POLLIN;
++
++	return mask;
++}  
++#endif
++
+ static const struct of_device_id of_gpio_dipsw_match[] = {
+ 	{ .compatible = "gpio-dip", },
+ 	{},
+@@ -90,6 +151,10 @@
+ 	.unlocked_ioctl = dip_ioctl,
+ 	.open  = dip_open,
+ 	.release = dip_close,
++#ifdef CONFIG_IWG15
++/*IWG15:SBC:Dipswitch:Adding the poll function to fops*/
++	.poll = dip_poll,
++#endif
+ };
+ 
+ static int gpio_dip_sw_probe(struct platform_device *pdev)
