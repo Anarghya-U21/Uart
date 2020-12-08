@@ -1,5 +1,5 @@
 # Uart
-UART communication
+UART communication:
 UART stands for Universal Asynchronous Receiver-Transmitter.
 These kinds of interfaces are used to achieve asynchronous serial communication between devices. The transmission speed and the data format are configurable.
 There are 4 main pins that may be used on a UART interface:
